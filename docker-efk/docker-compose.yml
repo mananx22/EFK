@@ -1,0 +1,85 @@
+version: '3'
+
+services:
+
+  # web:
+  #   image: httpd
+  #   ports:
+  #     - "80:80"
+  #   links:
+  #     - fluentd
+  #   logging:
+  #     driver: "fluentd"
+  #     options:
+  #       fluentd-address: localhost:24224
+  #       tag: httpd.access
+
+  # fluentd:
+  #   build: ./fluentd
+  #   volumes:
+  #     - ./fluentd/conf:/fluentd/etc    
+  #   ports:
+  #     - "24224:24224"
+  #     - "24224:24224/udp" 
+  elasticvue:
+    image: cars10/elasticvue
+    ports:
+      - "8080:8080"    
+    depends_on:
+      - elasticsearch
+
+  fluent-bit:
+    image: fluent/fluent-bit
+    command:
+          - /fluent-bit/bin/fluent-bit
+          - --config=/fluent-bit/etc/fluent-bit.conf
+    volumes:
+      - ./fluentbit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+    depends_on:
+      - elasticsearch
+
+  # Elasticsearch requires your vm.max_map_count set to 262144
+  # Default will be 65530
+  # sysctl -w vm.max_map_count=262144
+  # Add this to /etc/sysctl.conf for making it permanent
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.1.1
+    mem_limit: 2g
+    container_name: elasticsearch
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+      - "xpack.ml.enabled=false"
+      - ELASTIC_USERNAME=kibana
+      - ELASTIC_PASSWORD=kibana
+      - xpack.security.enabled=false
+      - "http.cors.enabled=true"
+      - "http.cors.allow-origin=http://192.168.8.15:8080"
+      - "http.cors.allow-headers=X-Requested-With,Content-Type,Content-Length,Authorization"
+    volumes:
+      - esdata1:/usr/share/elasticsearch/data
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+      - "9300:9300" 
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.1.1
+    container_name: kibana
+    links:
+      - "elasticsearch"
+    ports:
+      - 5601:5601
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200     
+      - ELASTICSEARCH_USERNAME=kibana
+      - ELASTICSEARCH_PASSWORD=kibana      
+    depends_on:
+      - elasticsearch    
+
+volumes:
+  esdata1:
+    driver: local
+
+
